@@ -24,6 +24,7 @@ paths:
       tags: [health]
       summary: Health check
       operationId: healthCheck
+      security: []
       responses:
         "200":
           description: Service is healthy
@@ -37,6 +38,7 @@ paths:
       tags: [auth]
       summary: Start Google OAuth flow
       operationId: startGoogleAuth
+      security: []
       responses:
         "200":
           description: Authorization URL for redirect
@@ -50,6 +52,7 @@ paths:
       tags: [auth]
       summary: OAuth callback (handled by backend)
       operationId: googleAuthCallback
+      security: []
       parameters:
         - name: code
           in: query
