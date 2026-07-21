@@ -1,5 +1,43 @@
+# Environment and secrets
 .env
-.venv/
+.env.local
+.env.*.local
+*.pem
+credentials.json
+token.json
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+
+# Node / Extension
+node_modules/
+.output/
+.wxt/
+*.local.ts
+*.log
+npm-debug.log*
 .DS_Store
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# Docker
+postgres_data/
+redis_data/
+
+# Generated contract types (regenerate via npm run generate:types)
+extension/src/lib/api-types.ts

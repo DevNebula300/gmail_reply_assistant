@@ -1,0 +1,26 @@
+{
+  "request_id": "req_mock_001",
+  "thread_fingerprint": "fp_mock_thread_001",
+  "suggestions": [
+    {
+      "id": "sug_1",
+      "text": "Hi Alex,\n\nThanks for following up. I am reviewing the remaining items and will confirm whether Thursday is feasible by end of day.\n\nBest regards",
+      "warnings": []
+    },
+    {
+      "id": "sug_2",
+      "text": "Hi Alex,\n\nAppreciate the check-in. I need a little more time to validate the scope before committing to Thursday. I will reply with a confirmed date shortly.\n\nThanks",
+      "warnings": [
+        {
+          "code": "date",
+          "message": "This reply mentions confirming a date but the context does not support a firm commitment."
+        }
+      ]
+    },
+    {
+      "id": "sug_3",
+      "text": "Hi Alex,\n\nGot it — I will review the open items and send an update once I have a clear picture of the timeline.\n\nBest",
+      "warnings": []
+    }
+  ]
+}

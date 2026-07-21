@@ -1,0 +1,22 @@
+{
+  "thread_id": "thread_mock_001",
+  "subject": "Project timeline follow-up",
+  "participants": ["alex@example.com", "you@example.com"],
+  "messages": [
+    {
+      "id": "msg_001",
+      "from": "alex@example.com",
+      "to": ["you@example.com"],
+      "date": "2026-07-18T14:30:00Z",
+      "body": "Hi, just checking whether we can confirm the delivery date for phase 1. Let me know if Thursday works."
+    },
+    {
+      "id": "msg_002",
+      "from": "you@example.com",
+      "to": ["alex@example.com"],
+      "date": "2026-07-17T09:15:00Z",
+      "body": "Thanks for the update. I will review the scope and get back to you."
+    }
+  ],
+  "fingerprint": "fp_mock_thread_001"
+}
