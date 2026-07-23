@@ -10,7 +10,7 @@ Responsibilities
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC
 
 from fastapi import HTTPException
 from google.auth.transport.requests import Request as GoogleRequest
