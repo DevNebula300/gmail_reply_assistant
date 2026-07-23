@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { ConnectGmail } from "./ConnectGmail";
 import { ContextPreview } from "./ContextPreview";
+import { LoadingState } from "./LoadingState";
 import { SuggestionList } from "./SuggestionList";
 import {
   useActiveThread,
@@ -13,7 +15,14 @@ const TONES = ["professional", "friendly", "concise", "formal", "casual"] as con
 const LENGTHS = ["short", "medium", "detailed"] as const;
 
 export function SidePanelApp() {
-  const { session, loading: sessionLoading } = useSession();
+  const {
+    session,
+    loading: sessionLoading,
+    connecting,
+    error: sessionError,
+    login,
+    logout,
+  } = useSession();
   const threadId = useActiveThread();
   const { context, loading: contextLoading, error: contextError } = useThreadContext(threadId);
   const generateState = useGenerateReplies(threadId, context?.fingerprint);
@@ -24,39 +33,58 @@ export function SidePanelApp() {
     // TODO(phase-5): Insert into Gmail compose editor or save as draft
   };
 
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen p-4">
+        <LoadingState message="Checking connection status…" />
+      </div>
+    );
+  }
+
+  if (!session || !session.gmail_connected) {
+    return (
+      <div className="min-h-screen p-4">
+        <header className="mb-4">
+          <h1 className="text-lg font-semibold text-slate-900">Gmail Reply Assistant</h1>
+          <p className="text-xs text-slate-500">
+            Generate contextual drafts safely without auto-sending.
+          </p>
+        </header>
+        <ConnectGmail onConnect={() => void login()} connecting={connecting} error={sessionError} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen p-4">
       <header className="mb-4">
         <h1 className="text-lg font-semibold text-slate-900">Gmail Reply Assistant</h1>
         <p className="text-xs text-slate-500">
-          Phase 0 scaffold — generate drafts only, never auto-send.
+          Generate contextual drafts safely without auto-sending.
         </p>
       </header>
 
       <section className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
-        <h2 className="mb-2 text-sm font-semibold text-slate-800">Account</h2>
-        {sessionLoading ? (
-          <p className="text-sm text-slate-500">Checking session…</p>
-        ) : session ? (
-          <div className="text-sm text-slate-700">
-            <p>{session.email}</p>
-            <p className="text-xs text-slate-500">
-              Gmail {session.gmail_connected ? "connected" : "not connected"}
-            </p>
-            {!session.gmail_connected && (
-              <button
-                type="button"
-                className="mt-2 rounded-md border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600"
-                disabled
-                title="Implement in Phase 2"
-              >
-                Connect Gmail (Phase 2)
-              </button>
-            )}
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-800">Account</h2>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Connected
+          </span>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-sm text-slate-700">
+          <div>
+            <p className="font-medium text-slate-900">{session.display_name ?? session.email}</p>
+            <p className="text-xs text-slate-500">{session.email}</p>
           </div>
-        ) : (
-          <p className="text-sm text-slate-500">No session</p>
-        )}
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="rounded border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          >
+            Disconnect
+          </button>
+        </div>
       </section>
 
       <section className="mb-4">
@@ -147,3 +175,4 @@ export function SidePanelApp() {
     </div>
   );
 }
+
