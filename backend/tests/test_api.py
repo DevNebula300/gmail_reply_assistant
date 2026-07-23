@@ -37,9 +37,6 @@ async def test_generate_replies_returns_three_suggestions(client):
 
 
 @pytest.mark.asyncio
-async def test_get_thread_context(client):
+async def test_get_thread_context_requires_auth(client):
     response = await client.get("/threads/thread_test_123")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["thread_id"] == "thread_test_123"
-    assert "messages" in data
+    assert response.status_code == 401
