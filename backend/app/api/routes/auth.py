@@ -24,11 +24,6 @@ from app.security import create_access_token, encrypt_token
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# ---------------------------------------------------------------------------
-# PKCE helpers — stateless: code_verifier is embedded in the state param
-# so it survives server reloads and requires no server-side storage.
-# ---------------------------------------------------------------------------
-
 def _generate_pkce_pair() -> tuple[str, str]:
     """Return (code_verifier, code_challenge) using S256 method."""
     code_verifier = base64.urlsafe_b64encode(os.urandom(40)).decode().rstrip("=")
@@ -118,7 +113,6 @@ async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_
     settings = get_settings()
     flow.redirect_uri = settings.google_redirect_uri
 
-    # Recover PKCE code_verifier from the state param (encoded at auth-URL build time)
     code_verifier = _extract_verifier(state) if state else ""
     if code_verifier:
         flow.code_verifier = code_verifier
@@ -198,9 +192,6 @@ async def get_current_user(
 async def logout(
     user: UserSession | None = Depends(get_optional_user), db: AsyncSession = Depends(get_db)
 ) -> None:
-    # Phase 2 implementation for logout
-    # In a real app we might revoke the refresh token and clear from DB
     if user:
-        # Revoke the token if needed, or clear the row
         pass
     return None

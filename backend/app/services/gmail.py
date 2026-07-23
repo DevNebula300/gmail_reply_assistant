@@ -1,11 +1,4 @@
-"""Gmail API service — Phase 3.
-
-Responsibilities
-----------------
-- Load the stored (encrypted) OAuth tokens for a user from the DB.
-- Refresh the access token when expired and persist the new one.
-- Expose a thin wrapper around the Gmail REST API (threads.get).
-"""
+"""Gmail API service."""
 
 from __future__ import annotations
 
@@ -25,11 +18,6 @@ from app.models.oauth_token import OAuthToken
 from app.security import decrypt_token, encrypt_token
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Credential helpers
-# ---------------------------------------------------------------------------
 
 
 async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credentials:
@@ -67,7 +55,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
         scopes=settings.gmail_scope_list,
     )
 
-    # Refresh if expired or missing access token
     if credentials.expired or not credentials.valid:
         if not refresh_token:
             raise HTTPException(
@@ -83,7 +70,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
                 detail="Failed to refresh Gmail access token. Re-authenticate.",
             ) from exc
 
-        # Persist the new access token
         token_row.access_token = credentials.token
         if credentials.expiry:
             token_row.expires_at = credentials.expiry.replace(tzinfo=UTC)
@@ -98,11 +84,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
 def build_gmail_service(credentials: Credentials):
     """Build and return a Gmail API service resource."""
     return build("gmail", "v1", credentials=credentials, cache_discovery=False)
-
-
-# ---------------------------------------------------------------------------
-# Thread fetch
-# ---------------------------------------------------------------------------
 
 
 def fetch_raw_thread(service, thread_id: str) -> dict:

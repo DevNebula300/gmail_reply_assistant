@@ -1,4 +1,4 @@
-"""Thread routes — Phase 3: Gmail API + context cleaning."""
+"""Thread routes."""
 
 import base64
 import email.utils
@@ -33,13 +33,11 @@ def _extract_body(payload: dict) -> str:
         if mime_type == "text/plain":
             return _decode_part(payload)
         if mime_type == "text/html":
-            # Basic tag strip — context.py will do the full clean in Phase 3b
             import re
             text = _decode_part(payload)
             return re.sub(r"<[^>]+>", "", text)
         return ""
 
-    # Multi-part: prefer text/plain leaf first
     plain = ""
     html = ""
     for part in payload.get("parts", []):
@@ -101,7 +99,6 @@ def _build_thread_context(raw: dict) -> ThreadContext:
         if msg_subject and not subject:
             subject = msg_subject
 
-        # Collect participants
         if msg_from:
             _, addr = email.utils.parseaddr(msg_from)
             if addr:
@@ -110,7 +107,6 @@ def _build_thread_context(raw: dict) -> ThreadContext:
             if addr:
                 participants.add(addr)
 
-        # Parse date
         try:
             msg_date = datetime(*email.utils.parsedate(msg_date_raw)[:6])
         except (TypeError, ValueError):
