@@ -1,5 +1,8 @@
 """Auth routes — Phase 2: implement real Google OAuth."""
 
+import base64
+import hashlib
+import os
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -21,6 +24,37 @@ from app.security import create_access_token, encrypt_token
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+# ---------------------------------------------------------------------------
+# PKCE helpers — stateless: code_verifier is embedded in the state param
+# so it survives server reloads and requires no server-side storage.
+# ---------------------------------------------------------------------------
+
+def _generate_pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge) using S256 method."""
+    code_verifier = base64.urlsafe_b64encode(os.urandom(40)).decode().rstrip("=")
+    digest = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).decode().rstrip("=")
+    return code_verifier, code_challenge
+
+
+def _build_state(code_verifier: str) -> str:
+    """Embed code_verifier in state: '<random>.<b64(verifier)>'."""
+    random_part = base64.urlsafe_b64encode(os.urandom(16)).decode().rstrip("=")
+    encoded = base64.urlsafe_b64encode(code_verifier.encode()).decode().rstrip("=")
+    return f"{random_part}.{encoded}"
+
+
+def _extract_verifier(state: str) -> str:
+    """Recover code_verifier from a state produced by _build_state."""
+    if not state or "." not in state:
+        return ""
+    try:
+        encoded = state.rsplit(".", 1)[1]
+        return base64.urlsafe_b64decode(encoded + "==").decode()
+    except Exception:
+        return ""
+
+
 def get_google_flow() -> Flow:
     settings = get_settings()
     client_config = {
@@ -34,7 +68,6 @@ def get_google_flow() -> Flow:
             "redirect_uris": [settings.google_redirect_uri],
         }
     }
-    # User's required scopes + Gmail scopes
     scopes = [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
@@ -44,31 +77,40 @@ def get_google_flow() -> Flow:
     return Flow.from_client_config(client_config, scopes=scopes)
 
 
+def _build_auth_url(flow: Flow, settings) -> str:
+    """Generate the Google auth URL with PKCE baked into the state."""
+    code_verifier, code_challenge = _generate_pkce_pair()
+    state = _build_state(code_verifier)
+    flow.redirect_uri = settings.google_redirect_uri
+    authorization_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+        state=state,
+        code_challenge=code_challenge,
+        code_challenge_method="S256",
+    )
+    return authorization_url
+
+
 @router.get("/google/start", response_model=AuthStartResponse)
 async def start_google_auth() -> AuthStartResponse:
     flow = get_google_flow()
     settings = get_settings()
-    flow.redirect_uri = settings.google_redirect_uri
-    authorization_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent"
-    )
-    return AuthStartResponse(authorization_url=authorization_url)
+    return AuthStartResponse(authorization_url=_build_auth_url(flow, settings))
 
 
 @router.get("/google/login")
 async def login_google_auth() -> RedirectResponse:
     flow = get_google_flow()
     settings = get_settings()
-    flow.redirect_uri = settings.google_redirect_uri
-    authorization_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent"
-    )
-    return RedirectResponse(url=authorization_url)
+    return RedirectResponse(url=_build_auth_url(flow, settings))
 
 
 @router.get("/google/callback")
 async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
     code = request.query_params.get("code")
+    state = request.query_params.get("state")
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
 
@@ -76,14 +118,17 @@ async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_
     settings = get_settings()
     flow.redirect_uri = settings.google_redirect_uri
 
+    # Recover PKCE code_verifier from the state param (encoded at auth-URL build time)
+    code_verifier = _extract_verifier(state) if state else ""
+    if code_verifier:
+        flow.code_verifier = code_verifier
+
     try:
         flow.fetch_token(code=code)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     credentials = flow.credentials
-
-    # Verify ID token to get user info
     try:
         id_info = id_token.verify_oauth2_token(
             credentials.id_token, google_requests.Request(), settings.google_client_id
@@ -97,8 +142,6 @@ async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_
 
     if not email:
         raise HTTPException(status_code=400, detail="Email not provided by Google")
-
-    # Get or create user
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalars().first()
 
@@ -106,8 +149,6 @@ async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_
         user = User(email=email, name=name, google_id=google_id)
         db.add(user)
         await db.flush()
-
-    # Store or update OAuth token
     result = await db.execute(select(OAuthToken).where(OAuthToken.user_id == user.id))
     oauth_token = result.scalars().first()
 
@@ -132,8 +173,6 @@ async def google_auth_callback(request: Request, db: AsyncSession = Depends(get_
             oauth_token.expires_at = credentials.expiry.replace(tzinfo=UTC)
 
     await db.commit()
-
-    # Create JWT session
     access_token = create_access_token(
         {"sub": user.id, "email": user.email, "name": user.name, "gmail_connected": True}
     )
@@ -147,8 +186,6 @@ async def get_current_user(
 ) -> UserSession:
     if user:
         return user
-
-    # Phase 0 mock session for local development
     return UserSession(
         user_id="user_dev_001",
         email="dev@example.com",
