@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
+  config,
   GenerateRepliesResponse,
   Length,
+  setAuthToken,
   ThreadContext,
   Tone,
   UserSession,
@@ -11,28 +13,91 @@ import {
 export function useSession() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api
-      .getSession()
-      .then(setSession)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getSession();
+      setSession(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load session");
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { session, loading, error };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const login = useCallback(async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      const { authorization_url } = await api.startGoogleAuth();
+
+      let token: string | null = null;
+
+      if (typeof chrome !== "undefined" && chrome.identity?.launchWebAuthFlow) {
+        const redirectUrl = await chrome.identity.launchWebAuthFlow({
+          url: authorization_url,
+          interactive: true,
+        });
+        if (redirectUrl) {
+          const urlObj = new URL(redirectUrl);
+          token = urlObj.searchParams.get("token") || urlObj.searchParams.get("code");
+        }
+      }
+
+      // Fallback for mock mode or test environment
+      if (!token && config.useMockApi) {
+        token = "mock_session_token_dev2026";
+      }
+
+      if (token) {
+        await setAuthToken(token);
+      }
+
+      const updatedSession = await api.getSession();
+      setSession(updatedSession);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await api.logout();
+      setSession(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Logout failed");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { session, loading, connecting, error, login, logout, refresh };
 }
 
 export function useActiveThread() {
   const [threadId, setThreadId] = useState<string>("thread_mock_001");
 
   useEffect(() => {
-    chrome.storage.session.get("activeThreadId").then((result) => {
-      if (typeof result.activeThreadId === "string") {
-        setThreadId(result.activeThreadId);
-      }
-    });
+    if (typeof chrome !== "undefined" && chrome.storage?.session) {
+      chrome.storage.session.get("activeThreadId").then((result) => {
+        if (typeof result.activeThreadId === "string") {
+          setThreadId(result.activeThreadId);
+        }
+      });
+    }
   }, []);
 
   return threadId;

@@ -48,13 +48,69 @@ export interface UserSession {
   display_name?: string;
 }
 
+export interface AuthStartResponse {
+  authorization_url: string;
+}
+
+const AUTH_TOKEN_KEY = "authToken";
+let memoryMockConnected = false;
+
+export async function getAuthToken(): Promise<string | null> {
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    try {
+      const res = await chrome.storage.local.get(AUTH_TOKEN_KEY);
+      if (typeof res[AUTH_TOKEN_KEY] === "string") {
+        return res[AUTH_TOKEN_KEY];
+      }
+    } catch {
+      // Fallback below
+    }
+  }
+  if (typeof localStorage !== "undefined") {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  }
+  return null;
+}
+
+export async function setAuthToken(token: string): Promise<void> {
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    try {
+      await chrome.storage.local.set({ [AUTH_TOKEN_KEY]: token });
+    } catch {
+      // Fallback below
+    }
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  }
+  memoryMockConnected = true;
+}
+
+export async function removeAuthToken(): Promise<void> {
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    try {
+      await chrome.storage.local.remove(AUTH_TOKEN_KEY);
+    } catch {
+      // Fallback below
+    }
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  }
+  memoryMockConnected = false;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -108,15 +164,33 @@ const MOCK_REPLIES: GenerateRepliesResponse = {
 export const api = {
   health: () => request<{ status: string; version: string }>("/health"),
 
-  getSession: () =>
+  startGoogleAuth: () =>
     config.useMockApi
-      ? Promise.resolve<UserSession>({
-          user_id: "user_dev_001",
-          email: "dev@example.com",
-          gmail_connected: false,
-          display_name: "Dev User",
+      ? Promise.resolve<AuthStartResponse>({
+          authorization_url: "http://localhost:8000/auth/google/mock-login",
         })
-      : request<UserSession>("/auth/me"),
+      : request<AuthStartResponse>("/auth/google/start"),
+
+  logout: async () => {
+    if (!config.useMockApi) {
+      await request<void>("/auth/logout", { method: "POST" });
+    }
+    await removeAuthToken();
+  },
+
+  getSession: async () => {
+    if (config.useMockApi) {
+      const token = await getAuthToken();
+      const isConnected = Boolean(token) || memoryMockConnected;
+      return {
+        user_id: "user_dev_001",
+        email: "dev@example.com",
+        gmail_connected: isConnected,
+        display_name: "Dev User",
+      };
+    }
+    return request<UserSession>("/auth/me");
+  },
 
   getThreadContext: (threadId: string) =>
     config.useMockApi
@@ -141,3 +215,4 @@ export const api = {
           body: JSON.stringify(payload),
         }),
 };
+

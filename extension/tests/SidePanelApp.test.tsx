@@ -4,13 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SidePanelApp } from "../components/SidePanelApp";
+import * as useAssistantHooks from "../src/hooks/useAssistant";
 
 vi.mock("../src/hooks/useAssistant", () => ({
-  useSession: () => ({
-    session: { email: "test@example.com", gmail_connected: true },
-    loading: false,
-    error: null,
-  }),
+  useSession: vi.fn(),
   useActiveThread: () => "thread_mock_001",
   useThreadContext: () => ({
     context: {
@@ -45,9 +42,36 @@ vi.mock("../src/hooks/useAssistant", () => ({
 }));
 
 describe("SidePanelApp", () => {
-  it("renders the side panel heading and account info", () => {
+  it("renders the connected side panel view when authenticated", () => {
+    vi.mocked(useAssistantHooks.useSession).mockReturnValue({
+      session: { user_id: "u1", email: "test@example.com", gmail_connected: true, display_name: "Test User" },
+      loading: false,
+      connecting: false,
+      error: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refresh: vi.fn(),
+    });
+
     render(<SidePanelApp />);
     expect(screen.getByText("Gmail Reply Assistant")).toBeInTheDocument();
     expect(screen.getByText("test@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeInTheDocument();
   });
-});
+
+  it("renders the Connect Gmail screen when disconnected", () => {
+    vi.mocked(useAssistantHooks.useSession).mockReturnValue({
+      session: null,
+      loading: false,
+      connecting: false,
+      error: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refresh: vi.fn(),
+    });
+
+    render(<SidePanelApp />);
+    expect(screen.getByRole("heading", { name: "Connect Gmail" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect Gmail Account" })).toBeInTheDocument();
+  });
+});
