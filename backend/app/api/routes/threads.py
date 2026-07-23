@@ -3,6 +3,7 @@
 import base64
 import email.utils
 import hashlib
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
@@ -34,7 +35,6 @@ def _extract_body(payload: dict) -> str:
             return _decode_part(payload)
         if mime_type == "text/html":
             # Basic tag strip — context.py will do the full clean in Phase 3b
-            import re
             text = _decode_part(payload)
             return re.sub(r"<[^>]+>", "", text)
         return ""
