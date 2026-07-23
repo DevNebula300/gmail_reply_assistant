@@ -88,27 +88,74 @@ export function useSession() {
 }
 
 export function useActiveThread() {
-  const [threadId, setThreadId] = useState<string>("thread_mock_001");
+  const [threadId, setThreadId] = useState<string | null>(
+    config.useMockApi ? "thread_mock_001" : null,
+  );
 
   useEffect(() => {
-    if (typeof chrome !== "undefined" && chrome.storage?.session) {
+    if (typeof chrome === "undefined") {
+      return;
+    }
+
+    if (chrome.storage?.session) {
       chrome.storage.session.get("activeThreadId").then((result) => {
         if (typeof result.activeThreadId === "string") {
           setThreadId(result.activeThreadId);
+        } else if (result.activeThreadId === null) {
+          setThreadId(null);
         }
       });
     }
+
+    const storageListener = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: string,
+    ) => {
+      if (areaName === "session" && changes.activeThreadId) {
+        const newValue = changes.activeThreadId.newValue;
+        setThreadId(typeof newValue === "string" ? newValue : null);
+      }
+    };
+
+    const messageListener = (message: { type?: string; threadId?: string | null }) => {
+      if (message?.type === "THREAD_CHANGED" || message?.type === "OPEN_SIDE_PANEL") {
+        setThreadId(typeof message.threadId === "string" ? message.threadId : null);
+      }
+    };
+
+    if (chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(storageListener);
+    }
+    if (chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(messageListener);
+    }
+
+    return () => {
+      if (chrome.storage?.onChanged) {
+        chrome.storage.onChanged.removeListener(storageListener);
+      }
+      if (chrome.runtime?.onMessage) {
+        chrome.runtime.onMessage.removeListener(messageListener);
+      }
+    };
   }, []);
 
   return threadId;
 }
 
-export function useThreadContext(threadId: string) {
+export function useThreadContext(threadId: string | null) {
   const [context, setContext] = useState<ThreadContext | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
+    if (!threadId) {
+      setContext(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     api
@@ -125,7 +172,7 @@ export function useThreadContext(threadId: string) {
   return { context, loading, error, refresh };
 }
 
-export function useGenerateReplies(threadId: string, fingerprint?: string) {
+export function useGenerateReplies(threadId: string | null, fingerprint?: string) {
   const [tone, setTone] = useState<Tone>("professional");
   const [length, setLength] = useState<Length>("medium");
   const [instruction, setInstruction] = useState("");
@@ -134,6 +181,11 @@ export function useGenerateReplies(threadId: string, fingerprint?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const generate = useCallback(async () => {
+    if (!threadId) {
+      setError("No active thread selected in Gmail.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -165,3 +217,4 @@ export function useGenerateReplies(threadId: string, fingerprint?: string) {
     generate,
   };
 }
+

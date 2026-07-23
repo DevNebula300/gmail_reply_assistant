@@ -143,7 +143,7 @@ export function SidePanelApp() {
         <button
           type="button"
           onClick={() => void generateState.generate()}
-          disabled={generateState.loading}
+          disabled={generateState.loading || !threadId}
           className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {generateState.loading ? "Generating…" : "Generate 3 replies"}
