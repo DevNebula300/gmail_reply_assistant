@@ -8,9 +8,17 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message, sender) => {
     if (message?.type === "OPEN_SIDE_PANEL" && sender.tab?.id) {
       if (message.threadId) {
-        chrome.storage.session.set({ activeThreadId: message.threadId });
+        void chrome.storage.session.set({ activeThreadId: message.threadId });
+      } else {
+        void chrome.storage.session.remove("activeThreadId");
       }
       void chrome.sidePanel.open({ tabId: sender.tab.id });
+    } else if (message?.type === "THREAD_CHANGED") {
+      if (message.threadId) {
+        void chrome.storage.session.set({ activeThreadId: message.threadId });
+      } else {
+        void chrome.storage.session.remove("activeThreadId");
+      }
     }
   });
 
@@ -26,3 +34,4 @@ export default defineBackground(() => {
     });
   });
 });
+
