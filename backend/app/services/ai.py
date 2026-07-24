@@ -3,13 +3,13 @@ from anthropic import AsyncAnthropic
 from app.config import get_settings
 from app.schemas import GenerateRepliesRequest, ReplySuggestion, ThreadContext
 
-settings = get_settings()
-client = AsyncAnthropic(api_key=settings.anthropic_api_key or "dummy-key-for-tests")
-
 
 async def generate_suggestions(
     thread_context: ThreadContext, request_params: GenerateRepliesRequest
 ) -> list[ReplySuggestion]:
+    settings = get_settings()
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key or "dummy-key-for-tests")
+
     prompt = f"Subject: {thread_context.subject}\n"
     for msg in thread_context.messages:
         prompt += f"From: {msg.from_}\n{msg.body}\n"

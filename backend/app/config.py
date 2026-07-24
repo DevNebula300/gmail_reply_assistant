@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     token_encryption_key: str = ""
 
     anthropic_api_key: str = ""
-    ai_model: str = "claude-3-haiku-20240307"
+    ai_model: str = "claude-haiku-4-5"
     rate_limit_generate_per_hour: int = 30
 
     @property
