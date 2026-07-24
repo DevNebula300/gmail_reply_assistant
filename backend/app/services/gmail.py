@@ -60,6 +60,7 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
         client_id=settings.google_client_id,
         client_secret=settings.google_client_secret,
         scopes=settings.gmail_scope_list,
+        expiry=token_row.expires_at.replace(tzinfo=None) if token_row.expires_at else None,
     )
     if credentials.expired or not credentials.valid:
         if not refresh_token:

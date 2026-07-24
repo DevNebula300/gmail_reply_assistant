@@ -127,6 +127,18 @@ def _build_thread_context(raw: dict) -> ThreadContext:
     )
 
 
+@router.get("", response_model=list[dict])
+async def list_threads(
+    user: UserSession = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    max_results: int = 10,
+):
+    credentials = await get_credentials_for_user(user.user_id, db)
+    service = build_gmail_service(credentials)
+    result = service.users().threads().list(userId="me", maxResults=max_results).execute()
+    return [{"id": t["id"], "snippet": t.get("snippet", "")} for t in result.get("threads", [])]
+
+
 @router.get("/{thread_id}", response_model=ThreadContext)
 async def get_thread_context(
     thread_id: str,
