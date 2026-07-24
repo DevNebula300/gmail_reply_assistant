@@ -3,7 +3,6 @@
 import base64
 import email.utils
 import hashlib
-import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.dependencies import get_current_user
 from app.schemas import ThreadContext, ThreadMessage, UserSession
+from app.services.context import clean_message_body, truncate_context
 from app.services.gmail import build_gmail_service, fetch_raw_thread, get_credentials_for_user
 
 router = APIRouter(prefix="/threads", tags=["threads"])
@@ -28,18 +28,14 @@ def _decode_part(payload: dict) -> str:
 def _extract_body(payload: dict) -> str:
     """Walk MIME parts to find text/plain (preferred) or text/html fallback."""
     mime_type = payload.get("mimeType", "")
-
-    # Leaf node
     if not payload.get("parts"):
         if mime_type == "text/plain":
-            return _decode_part(payload)
-        if mime_type == "text/html":
-            # Basic tag strip — context.py will do the full clean in Phase 3b
             text = _decode_part(payload)
-            return re.sub(r"<[^>]+>", "", text)
+            return clean_message_body(text, is_html=False)
+        if mime_type == "text/html":
+            text = _decode_part(payload)
+            return clean_message_body(text, is_html=True)
         return ""
-
-    # Multi-part: prefer text/plain leaf first
     plain = ""
     html = ""
     for part in payload.get("parts", []):
@@ -77,7 +73,6 @@ def _build_thread_context(raw: dict) -> ThreadContext:
     """Convert a raw Gmail API Thread resource into a ThreadContext schema."""
     thread_id = raw.get("id", "")
     messages_raw = raw.get("messages", [])
-
     if not messages_raw:
         return ThreadContext(
             thread_id=thread_id,
@@ -86,22 +81,17 @@ def _build_thread_context(raw: dict) -> ThreadContext:
             messages=[],
             fingerprint=_compute_fingerprint(thread_id, ""),
         )
-
     participants: set[str] = set()
     subject = ""
     parsed_messages: list[ThreadMessage] = []
-
     for msg in messages_raw:
         headers = msg.get("payload", {}).get("headers", [])
         msg_from = _header(headers, "From")
         msg_to_raw = _header(headers, "To")
         msg_date_raw = _header(headers, "Date")
         msg_subject = _header(headers, "Subject")
-
         if msg_subject and not subject:
             subject = msg_subject
-
-        # Collect participants
         if msg_from:
             _, addr = email.utils.parseaddr(msg_from)
             if addr:
@@ -109,27 +99,25 @@ def _build_thread_context(raw: dict) -> ThreadContext:
         for addr in _parse_address_list(msg_to_raw):
             if addr:
                 participants.add(addr)
-
-        # Parse date
         try:
             msg_date = datetime(*email.utils.parsedate(msg_date_raw)[:6])
         except (TypeError, ValueError):
             msg_date = datetime.utcnow()
-
         body = _extract_body(msg.get("payload", {}))
-
         parsed_messages.append(
-            ThreadMessage(**{
-                "id": msg.get("id", ""),
-                "from": msg_from,
-                "to": _parse_address_list(msg_to_raw),
-                "date": msg_date,
-                "body": body,
-            })
+            ThreadMessage(
+                **{
+                    "id": msg.get("id", ""),
+                    "from": msg_from,
+                    "to": _parse_address_list(msg_to_raw),
+                    "date": msg_date,
+                    "body": body,
+                }
+            )
         )
 
     last_msg_id = messages_raw[-1].get("id", "") if messages_raw else ""
-
+    parsed_messages = truncate_context(parsed_messages)
     return ThreadContext(
         thread_id=thread_id,
         subject=subject or "(no subject)",

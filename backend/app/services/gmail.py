@@ -27,11 +27,6 @@ from app.security import decrypt_token, encrypt_token
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Credential helpers
-# ---------------------------------------------------------------------------
-
-
 async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credentials:
     """Load, (optionally refresh), and return Google OAuth credentials.
 
@@ -66,8 +61,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
         client_secret=settings.google_client_secret,
         scopes=settings.gmail_scope_list,
     )
-
-    # Refresh if expired or missing access token
     if credentials.expired or not credentials.valid:
         if not refresh_token:
             raise HTTPException(
@@ -82,8 +75,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
                 status_code=401,
                 detail="Failed to refresh Gmail access token. Re-authenticate.",
             ) from exc
-
-        # Persist the new access token
         token_row.access_token = credentials.token
         if credentials.expiry:
             token_row.expires_at = credentials.expiry.replace(tzinfo=UTC)
@@ -98,11 +89,6 @@ async def get_credentials_for_user(user_id: str, db: AsyncSession) -> Credential
 def build_gmail_service(credentials: Credentials):
     """Build and return a Gmail API service resource."""
     return build("gmail", "v1", credentials=credentials, cache_discovery=False)
-
-
-# ---------------------------------------------------------------------------
-# Thread fetch
-# ---------------------------------------------------------------------------
 
 
 def fetch_raw_thread(service, thread_id: str) -> dict:
@@ -126,12 +112,7 @@ def fetch_raw_thread(service, thread_id: str) -> dict:
     HTTPException(502)  — unexpected Gmail API error.
     """
     try:
-        return (
-            service.users()
-            .threads()
-            .get(userId="me", id=thread_id, format="full")
-            .execute()
-        )
+        return service.users().threads().get(userId="me", id=thread_id, format="full").execute()
     except HttpError as exc:
         if exc.resp.status == 404:
             raise HTTPException(

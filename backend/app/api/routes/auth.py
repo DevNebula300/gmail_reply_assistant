@@ -29,6 +29,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # so it survives server reloads and requires no server-side storage.
 # ---------------------------------------------------------------------------
 
+
 def _generate_pkce_pair() -> tuple[str, str]:
     """Return (code_verifier, code_challenge) using S256 method."""
     code_verifier = base64.urlsafe_b64encode(os.urandom(40)).decode().rstrip("=")
