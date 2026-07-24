@@ -39,17 +39,62 @@ export function extractThreadIdFromHash(hash: string): string | null {
   return null;
 }
 
+export function parseThreadId(rawId: string | null | undefined): string | null {
+  if (!rawId) {
+    return null;
+  }
+  const cleaned = rawId
+    .trim()
+    .replace(/^#?thread-[a-z]:/i, "")
+    .replace(/^#/, "")
+    .trim();
+
+  if (/^[a-zA-Z0-9_-]{12,}$/.test(cleaned)) {
+    return cleaned;
+  }
+
+  return null;
+}
+
 export function getThreadIdFromLocationAndDom(): string | null {
   const fromHash = extractThreadIdFromHash(window.location.hash);
   if (fromHash) {
     return fromHash;
   }
 
-  const domEl = document.querySelector<HTMLElement>("[data-thread-id], [data-legacy-thread-id]");
-  if (domEl) {
-    const id = domEl.getAttribute("data-thread-id") || domEl.getAttribute("data-legacy-thread-id");
-    if (id && /^[a-zA-Z0-9_-]{12,}$/.test(id)) {
-      return id;
+  // 1. Target open conversation headers / message cards in Gmail (h2 subject header, div.if message wrapper)
+  const activeConversationEl = document.querySelector<HTMLElement>(
+    'h2[data-legacy-thread-id], h2[data-thread-id], .if[data-legacy-thread-id], .if[data-thread-id]'
+  );
+  if (activeConversationEl) {
+    const rawId =
+      activeConversationEl.getAttribute("data-legacy-thread-id") ||
+      activeConversationEl.getAttribute("data-thread-id");
+    const parsed = parseThreadId(rawId);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  // 2. Fallback to any non-row legacy thread element in main view
+  const legacyEl = document.querySelector<HTMLElement>(
+    '[role="main"] [data-legacy-thread-id]:not(tr):not(.zA), [data-legacy-thread-id]:not(tr):not(.zA)'
+  );
+  if (legacyEl) {
+    const parsed = parseThreadId(legacyEl.getAttribute("data-legacy-thread-id"));
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  // 3. Fallback to any non-row thread element in main view
+  const threadEl = document.querySelector<HTMLElement>(
+    '[role="main"] [data-thread-id]:not(tr):not(.zA), [data-thread-id]:not(tr):not(.zA)'
+  );
+  if (threadEl) {
+    const parsed = parseThreadId(threadEl.getAttribute("data-thread-id"));
+    if (parsed) {
+      return parsed;
     }
   }
 

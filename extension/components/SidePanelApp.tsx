@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { ConnectGmail } from "./ConnectGmail";
 import { ContextPreview } from "./ContextPreview";
+import { ErrorState } from "./ErrorState";
 import { LoadingState } from "./LoadingState";
+import { ReplyControls } from "./ReplyControls";
 import { SuggestionList } from "./SuggestionList";
 import {
   useActiveThread,
@@ -10,9 +12,6 @@ import {
   useThreadContext,
 } from "../src/hooks/useAssistant";
 import { ReplySuggestion } from "../src/lib/api-client";
-
-const TONES = ["professional", "friendly", "concise", "formal", "casual"] as const;
-const LENGTHS = ["short", "medium", "detailed"] as const;
 
 export function SidePanelApp() {
   const {
@@ -27,6 +26,11 @@ export function SidePanelApp() {
   const { context, loading: contextLoading, error: contextError } = useThreadContext(threadId);
   const generateState = useGenerateReplies(threadId, context?.fingerprint);
   const [selectedText, setSelectedText] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    setSelectedText(null);
+    await generateState.generate();
+  };
 
   const handleSelectSuggestion = (suggestion: ReplySuggestion) => {
     setSelectedText(suggestion.text);
@@ -54,6 +58,13 @@ export function SidePanelApp() {
       </div>
     );
   }
+
+  const isGenerateDisabled = !threadId || !context?.fingerprint;
+  const generateDisabledReason = !threadId
+    ? "Please select an active email thread in Gmail."
+    : !context?.fingerprint
+    ? "Thread context fingerprint missing. Please select or refresh an active thread."
+    : undefined;
 
   return (
     <div className="min-h-screen p-4">
@@ -96,75 +107,42 @@ export function SidePanelApp() {
         />
       </section>
 
-      <section className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Generate replies</h2>
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <label className="text-xs text-slate-600">
-            Tone
-            <select
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-              value={generateState.tone}
-              onChange={(e) => generateState.setTone(e.target.value as typeof generateState.tone)}
-            >
-              {TONES.map((tone) => (
-                <option key={tone} value={tone}>
-                  {tone}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-slate-600">
-            Length
-            <select
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-              value={generateState.length}
-              onChange={(e) =>
-                generateState.setLength(e.target.value as typeof generateState.length)
-              }
-            >
-              {LENGTHS.map((length) => (
-                <option key={length} value={length}>
-                  {length}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label className="mb-3 block text-xs text-slate-600">
-          Instruction (optional)
-          <input
-            type="text"
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-            placeholder='e.g. "decline politely"'
-            value={generateState.instruction}
-            onChange={(e) => generateState.setInstruction(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => void generateState.generate()}
-          disabled={generateState.loading || !threadId}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          {generateState.loading ? "Generating…" : "Generate 3 replies"}
-        </button>
-        {generateState.error && (
-          <p className="mt-2 text-xs text-red-600">{generateState.error}</p>
-        )}
+      <section className="mb-4">
+        <ReplyControls
+          tone={generateState.tone}
+          setTone={generateState.setTone}
+          length={generateState.length}
+          setLength={generateState.setLength}
+          instruction={generateState.instruction}
+          setInstruction={generateState.setInstruction}
+          onGenerate={() => void handleGenerate()}
+          loading={generateState.loading}
+          disabled={isGenerateDisabled}
+          disabledReason={generateDisabledReason}
+        />
       </section>
 
+      {generateState.error && (
+        <div className="mb-4">
+          <ErrorState message={generateState.error} />
+        </div>
+      )}
+
       <section className="mb-4">
-        <h2 className="mb-2 text-sm font-semibold text-slate-800">Suggestions</h2>
         <SuggestionList
           suggestions={generateState.result?.suggestions ?? []}
+          selectedText={selectedText}
           onSelect={handleSelectSuggestion}
+          onRegenerate={() => void handleGenerate()}
+          loading={generateState.loading}
+          disabled={isGenerateDisabled}
         />
       </section>
 
       {selectedText && (
         <section className="rounded-lg border border-green-200 bg-green-50 p-3">
           <h2 className="mb-1 text-sm font-semibold text-green-900">Selected draft</h2>
-          <pre className="whitespace-pre-wrap font-sans text-sm text-green-900">
+          <pre className="whitespace-pre-wrap font-sans text-sm text-green-900 leading-relaxed">
             {selectedText}
           </pre>
           <p className="mt-2 text-xs text-green-700">
@@ -175,4 +153,5 @@ export function SidePanelApp() {
     </div>
   );
 }
+
 

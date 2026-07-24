@@ -181,8 +181,17 @@ export function useGenerateReplies(threadId: string | null, fingerprint?: string
   const [error, setError] = useState<string | null>(null);
 
   const generate = useCallback(async () => {
+    if (loading) {
+      return;
+    }
+
     if (!threadId) {
       setError("No active thread selected in Gmail.");
+      return;
+    }
+
+    if (!fingerprint) {
+      setError("Thread context fingerprint missing. Please select an active thread.");
       return;
     }
 
@@ -202,7 +211,7 @@ export function useGenerateReplies(threadId: string | null, fingerprint?: string
     } finally {
       setLoading(false);
     }
-  }, [threadId, tone, length, instruction, fingerprint]);
+  }, [threadId, tone, length, instruction, fingerprint, loading]);
 
   return {
     tone,
