@@ -8,6 +8,10 @@ export const config = {
 export type Tone = "professional" | "friendly" | "concise" | "formal" | "casual";
 export type Length = "short" | "medium" | "detailed";
 
+export const TONE_OPTIONS: Tone[] = ["professional", "friendly", "concise", "formal", "casual"];
+export const LENGTH_OPTIONS: Length[] = ["short", "medium", "detailed"];
+
+
 export interface ThreadMessage {
   id: string;
   from: string;
@@ -194,7 +198,12 @@ export const api = {
 
   getThreadContext: (threadId: string) =>
     config.useMockApi
-      ? Promise.resolve({ ...MOCK_THREAD, thread_id: threadId })
+      ? Promise.resolve({
+          ...MOCK_THREAD,
+          thread_id: threadId,
+          subject: `Thread (${threadId.slice(-6)}) timeline follow-up`,
+          fingerprint: `fp_${threadId.slice(-8)}`,
+        })
       : request<ThreadContext>(`/threads/${threadId}`),
 
   generateReplies: (payload: {
