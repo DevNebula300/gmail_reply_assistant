@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     token_encryption_key: str = ""
 
-    openai_api_key: str = ""
-    ai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-3-haiku-20240307"
     rate_limit_generate_per_hour: int = 30
 
     @property

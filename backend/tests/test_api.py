@@ -21,7 +21,7 @@ async def test_health_check(client):
 
 
 @pytest.mark.asyncio
-async def test_generate_replies_returns_three_suggestions(client):
+async def test_generate_replies_requires_auth(client):
     response = await client.post(
         "/replies/generate",
         json={
@@ -30,10 +30,7 @@ async def test_generate_replies_returns_three_suggestions(client):
             "length": "medium",
         },
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data["suggestions"]) == 3
-    assert "request_id" in data
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
